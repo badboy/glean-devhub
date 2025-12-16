@@ -16,7 +16,11 @@ struct TokeiStats {
 pub struct Codesize;
 
 impl MetricRecorder for Codesize {
-    fn record(&self, sh: &Shell, _commit: &str) -> Result<Vec<Metric>> {
+    fn name(&self) -> &'static str {
+        "Code size"
+    }
+
+    fn record(&self, sh: &Shell) -> Result<Vec<Metric>> {
         let tokei_out = cmd!(sh, "tokei -o json -e glean-core/android/build -t rust,kotlin,swift,python glean-core").read()?;
         let tokei_json: Tokei = serde_json::from_str(&tokei_out)?;
 
@@ -39,7 +43,11 @@ impl MetricRecorder for Codesize {
 pub struct MetricCount;
 
 impl MetricRecorder for MetricCount {
-    fn record(&self, sh: &Shell, _commit: &str) -> Result<Vec<Metric>> {
+    fn name(&self) -> &'static str {
+        "Metric Count"
+    }
+
+    fn record(&self, sh: &Shell) -> Result<Vec<Metric>> {
         let metric_count = cmd!(sh, "rg -c '^  [a-z]' glean-core/metrics.yaml").read()?.parse()?;
         let metric = Metric {
             name: format!("Number of built-in metrics"),

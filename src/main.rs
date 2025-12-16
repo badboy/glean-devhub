@@ -1,11 +1,13 @@
-use std::fs::{self, File};
-use std::io::{Write, Error as IoError};
-use std::time::{Instant, SystemTime};
+use std::fs::File;
+use std::io::Write;
+use std::time::SystemTime;
 
+use android::AndroidLibrarySize;
 use serde::Serialize;
 use xshell::{Shell, cmd};
 
 mod build_metrics;
+mod android;
 
 use build_metrics::{Codesize, MetricCount};
 
@@ -68,7 +70,8 @@ fn main() -> Result<()> {
 }
 
 trait MetricRecorder {
-    fn record(&self, sh: &Shell, commit: &str) -> Result<Vec<Metric>>;
+    fn record(&self, sh: &Shell) -> Result<Vec<Metric>>;
+    fn name(&self) -> &'static str;
 }
 
 fn run(flags: flags::Run) -> Result<()> {
@@ -90,6 +93,12 @@ fn run(flags: flags::Run) -> Result<()> {
     let commits = commits.lines().rev().collect::<Vec<_>>();
     println!("Found {} commits", commits.len());
 
+    let metric_recorders = &[
+        &AndroidLibrarySize as &dyn MetricRecorder,
+        &Codesize,
+        &MetricCount,
+    ];
+
     let data_file = File::create("data.json")?;
     let commit_len = commits.len();
     for (idx, commit) in commits.iter().enumerate() {
@@ -106,16 +115,13 @@ fn run(flags: flags::Run) -> Result<()> {
             attributes: Attributes { git_commit: commit.to_string(), wall_clock_timestamp }
         };
 
-        if let Ok(metric) = android_build_size(&sh) {
-            batch.metrics.push(metric);
-        }
-
-        if let Ok(metrics) = Codesize.record(&sh, commit) {
-            batch.metrics.extend(metrics);
-        }
-
-        if let Ok(metrics) = MetricCount.record(&sh, commit) {
-            batch.metrics.extend(metrics);
+        for recorder in metric_recorders {
+            match recorder.record(&sh) {
+                Ok(metrics) => batch.metrics.extend(metrics),
+                Err(e) => {
+                    eprintln!("commit: {commit} - failed to run recorder {}, error: {:?}", recorder.name(), e);
+                }
+            }
         }
 
         writeln!(&data_file, "{}", serde_json::to_string(&batch)?)?;
@@ -125,40 +131,6 @@ fn run(flags: flags::Run) -> Result<()> {
     Ok(())
 }
 
-fn android_build_size(sh: &Shell) -> Result<Metric> {
-    build_android(&sh)?;
-
-    let lib_file = sh.current_dir().join("glean-core/android-native/build/rustJniLibs/android/arm64-v8a/libxul.so");
-    let Ok(metadata) = lib_file.metadata() else { return Err(IoError::other("no metadata").into()) };
-    if !metadata.is_file() {
-        return Err(IoError::other("not a file").into());
-    }
-
-    let lib_size = metadata.len();
-    Ok(Metric {
-        name: String::from("lib size arm64-v8"),
-        unit: String::from("bytes"),
-        value: lib_size,
-    })
-}
-
-
-fn build_android(sh: &Shell) -> Result<()> {
-    let _env = sh.push_env("CI", "1");
-    let _env = sh.push_env("GRADLE_OPTS", "-Dorg.gradle.daemon=false");
-
-    if fs::exists("local.properties").unwrap_or(false) {
-        let dest = sh.current_dir().join("local.properties");
-        fs::copy("local.properties", dest)?;
-    }
-
-    let now = Instant::now();
-    cmd!(sh, "./gradlew --no-daemon :glean-native:cargoBuildArm64").run()?;
-    let duration = now.elapsed();
-    println!("Build took: {:?}", duration);
-
-    Ok(())
-}
 
 #[derive(Serialize)]
 struct MetricBatch {
