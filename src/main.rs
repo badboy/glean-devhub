@@ -2,14 +2,16 @@ use std::fs::File;
 use std::io::Write;
 use std::time::SystemTime;
 
-use android::AndroidLibrarySize;
 use serde::Serialize;
 use xshell::{Shell, cmd};
 
 mod android;
 mod build_metrics;
+mod benchmarks;
 
+use android::AndroidLibrarySize;
 use build_metrics::{Codesize, MetricCount};
+use benchmarks::Benchmark;
 
 type Result<T, E = Box<dyn std::error::Error>> = std::result::Result<T, E>;
 
@@ -93,6 +95,7 @@ fn run(flags: flags::Run) -> Result<()> {
         &AndroidLibrarySize as &dyn MetricRecorder,
         &Codesize,
         &MetricCount,
+        &Benchmark,
     ];
 
     if flags.list_metrics {
