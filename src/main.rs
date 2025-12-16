@@ -1,5 +1,5 @@
 use std::fs::{self, File};
-use std::io::Write;
+use std::io::{Write, Error as IoError};
 use std::time::{Instant, SystemTime};
 
 use serde::Serialize;
@@ -97,14 +97,6 @@ fn run(flags: flags::Run) -> Result<()> {
         println!("{}/{}: Checking out {commit}", idx+1, commit_len);
         cmd!(sh, "git reset --hard {commit}").run()?;
 
-        build_android(&sh)?;
-
-        let lib_file = repo.join("glean-core/android-native/build/rustJniLibs/android/arm64-v8a/libxul.so");
-        let Ok(metadata) = lib_file.metadata() else { continue };
-        if !metadata.is_file() {
-            continue;
-        }
-
         let timestamp = cmd!(sh, "git log --pretty=format:%ct -1 {commit}").read()?.parse()?;
 
         let mut batch = MetricBatch {
@@ -113,18 +105,32 @@ fn run(flags: flags::Run) -> Result<()> {
             attributes: Attributes { git_commit: commit.to_string(), wall_clock_timestamp }
         };
 
-        let lib_size = metadata.len();
-        batch.metrics.push(Metric {
-            name: String::from("lib size arm64-v8"),
-            unit: String::from("bytes"),
-            value: lib_size,
-        });
+        if let Ok(metric) = android_build_size(&sh) {
+            batch.metrics.push(metric);
+        }
 
         writeln!(&data_file, "{}", serde_json::to_string(&batch)?)?;
         data_file.sync_all()?;
     }
 
     Ok(())
+}
+
+fn android_build_size(sh: &Shell) -> Result<Metric> {
+    build_android(&sh)?;
+
+    let lib_file = sh.current_dir().join("glean-core/android-native/build/rustJniLibs/android/arm64-v8a/libxul.so");
+    let Ok(metadata) = lib_file.metadata() else { return Err(IoError::other("no metadata").into()) };
+    if !metadata.is_file() {
+        return Err(IoError::other("not a file").into());
+    }
+
+    let lib_size = metadata.len();
+    Ok(Metric {
+        name: String::from("lib size arm64-v8"),
+        unit: String::from("bytes"),
+        value: lib_size,
+    })
 }
 
 fn build_android(sh: &Shell) -> Result<()> {
