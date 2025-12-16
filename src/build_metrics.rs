@@ -17,7 +17,11 @@ pub struct Codesize;
 
 impl MetricRecorder for Codesize {
     fn name(&self) -> &'static str {
-        "Code size"
+        "loc"
+    }
+
+    fn description(&self) -> &'static str {
+        "Lines of Code (by language)"
     }
 
     fn record(&self, sh: &Shell) -> Result<Vec<Metric>> {
@@ -47,7 +51,11 @@ pub struct MetricCount;
 
 impl MetricRecorder for MetricCount {
     fn name(&self) -> &'static str {
-        "Metric Count"
+        "metrics"
+    }
+
+    fn description(&self) -> &'static str {
+        "Number of built-in metrics"
     }
 
     fn record(&self, sh: &Shell) -> Result<Vec<Metric>> {

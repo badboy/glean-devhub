@@ -29,6 +29,12 @@ mod flags {
 
             /// Repository path
             required -p, --path path: PathBuf
+
+            /// List all available metrics
+            optional --list-metrics
+
+            /// Enable only the listed metrics (comma or space-separated)
+            optional -m, --metrics metrics: String
         }
     }
     // generated start
@@ -39,6 +45,8 @@ mod flags {
         pub revset: Option<String>,
         pub url: String,
         pub path: PathBuf,
+        pub list_metrics: bool,
+        pub metrics: Option<String>,
     }
 
     impl Run {
@@ -71,13 +79,36 @@ fn main() -> Result<()> {
 
 trait MetricRecorder {
     fn record(&self, sh: &Shell) -> Result<Vec<Metric>>;
+
     fn name(&self) -> &'static str;
+    fn description(&self) -> &'static str;
 }
 
 fn run(flags: flags::Run) -> Result<()> {
     let sh = Shell::new()?;
 
     let repo = flags.path;
+
+    let metric_recorders = &[
+        &AndroidLibrarySize as &dyn MetricRecorder,
+        &Codesize,
+        &MetricCount,
+    ];
+
+    if flags.list_metrics {
+        for recorder in metric_recorders {
+            println!("{}:\t{}", recorder.name(), recorder.description());
+        }
+
+        return Ok(());
+    }
+
+    let enabled_metrics = flags
+        .metrics
+        .unwrap_or_else(|| String::from(""));
+    let enabled_metrics = enabled_metrics
+        .split(|c| c == ' ' || c == ',')
+        .collect::<Vec<_>>();
 
     if repo.is_dir() {
         sh.change_dir(&repo);
@@ -92,12 +123,6 @@ fn run(flags: flags::Run) -> Result<()> {
     let commits = cmd!(sh, "git rev-list {revset}").read()?;
     let commits = commits.lines().rev().collect::<Vec<_>>();
     println!("Found {} commits", commits.len());
-
-    let metric_recorders = &[
-        &AndroidLibrarySize as &dyn MetricRecorder,
-        &Codesize,
-        &MetricCount,
-    ];
 
     let data_file = File::create("data.json")?;
     let commit_len = commits.len();
@@ -124,6 +149,11 @@ fn run(flags: flags::Run) -> Result<()> {
         };
 
         for recorder in metric_recorders {
+            let name = recorder.name();
+            if enabled_metrics.len() > 0 && !enabled_metrics.contains(&name) {
+                continue;
+            }
+
             match recorder.record(&sh) {
                 Ok(metrics) => batch.metrics.extend(metrics),
                 Err(e) => {

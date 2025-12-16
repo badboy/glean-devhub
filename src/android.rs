@@ -11,6 +11,10 @@ pub struct AndroidLibrarySize;
 
 impl MetricRecorder for AndroidLibrarySize {
     fn name(&self) -> &'static str {
+        "android-library-size"
+    }
+
+    fn description(&self) -> &'static str {
         "Android Library Size"
     }
 
