@@ -103,12 +103,8 @@ fn run(flags: flags::Run) -> Result<()> {
         return Ok(());
     }
 
-    let enabled_metrics = flags
-        .metrics
-        .unwrap_or_else(|| String::from(""));
-    let enabled_metrics = enabled_metrics
-        .split(|c| c == ' ' || c == ',')
-        .collect::<Vec<_>>();
+    let enabled_metrics = flags.metrics.unwrap_or_else(|| String::from(""));
+    let enabled_metrics = enabled_metrics.split([' ', ',']).collect::<Vec<_>>();
 
     if repo.is_dir() {
         sh.change_dir(&repo);
@@ -150,7 +146,7 @@ fn run(flags: flags::Run) -> Result<()> {
 
         for recorder in metric_recorders {
             let name = recorder.name();
-            if enabled_metrics.len() > 0 && !enabled_metrics.contains(&name) {
+            if !enabled_metrics.is_empty() && !enabled_metrics.contains(&name) {
                 continue;
             }
 

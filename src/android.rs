@@ -19,7 +19,7 @@ impl MetricRecorder for AndroidLibrarySize {
     }
 
     fn record(&self, sh: &Shell) -> Result<Vec<Metric>> {
-        build_android(&sh)?;
+        build_android(sh)?;
 
         let lib_file = sh
             .current_dir()

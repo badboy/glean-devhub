@@ -63,7 +63,7 @@ impl MetricRecorder for MetricCount {
             .read()?
             .parse()?;
         let metric = Metric {
-            name: format!("Number of built-in metrics"),
+            name: String::from("Number of built-in metrics"),
             unit: String::from(""),
             value: metric_count,
         };
