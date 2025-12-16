@@ -2,12 +2,14 @@ use std::fs::File;
 use std::io::Write;
 use std::time::SystemTime;
 
+use deps::Dependencies;
 use serde::Serialize;
 use xshell::{Shell, cmd};
 
 mod android;
 mod benchmarks;
 mod build_metrics;
+mod deps;
 
 use android::AndroidLibrarySize;
 use benchmarks::Benchmark;
@@ -96,6 +98,8 @@ fn run(flags: flags::Run) -> Result<()> {
         &Codesize,
         &MetricCount,
         &Benchmark,
+        &Dependencies::new("glean-core"),
+        &Dependencies::new("glean"),
     ];
 
     if flags.list_metrics {
