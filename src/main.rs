@@ -1,9 +1,11 @@
-use std::{fs::OpenOptions, path::PathBuf};
+use std::collections::HashMap;
+use std::fs::{self, File};
 use std::io::Write;
 use std::time::SystemTime;
+use std::{fs::OpenOptions, path::PathBuf};
 
 use deps::Dependencies;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use xshell::{Shell, cmd};
 
 mod android;
@@ -42,6 +44,11 @@ mod flags {
 
             /// Enable only the listed metrics (comma or space-separated)
             optional -m, --metrics metrics: String
+
+            /// Merge remaining listed files into `output`. Does not run metric recorder.
+            optional --merge
+
+            repeated files: PathBuf
         }
     }
     // generated start
@@ -49,12 +56,15 @@ mod flags {
     // Run `env UPDATE_XFLAGS=1 cargo build` to regenerate.
     #[derive(Debug)]
     pub struct Run {
+        pub files: Vec<PathBuf>,
+
         pub revset: Option<String>,
         pub url: String,
         pub path: PathBuf,
         pub output: Option<PathBuf>,
         pub list_metrics: bool,
         pub metrics: Option<String>,
+        pub merge: bool,
     }
 
     impl Run {
@@ -82,7 +92,11 @@ fn main() -> Result<()> {
         Err(err) => err.exit(),
     };
 
-    run(flags)
+    if flags.merge {
+        merge(flags)
+    } else {
+        run(flags)
+    }
 }
 
 trait MetricRecorder {
@@ -135,7 +149,10 @@ fn run(flags: flags::Run) -> Result<()> {
     println!("Found {} commits", commits.len());
 
     let data_file_path = flags.output.unwrap_or_else(|| PathBuf::from("data.json"));
-    let data_file = OpenOptions::new().append(true).create(true).open(data_file_path)?;
+    let data_file = OpenOptions::new()
+        .append(true)
+        .create(true)
+        .open(data_file_path)?;
     let commit_len = commits.len();
     for (idx, commit) in commits.iter().enumerate() {
         let wall_clock_timestamp = SystemTime::now()
@@ -186,20 +203,53 @@ fn run(flags: flags::Run) -> Result<()> {
     Ok(())
 }
 
-#[derive(Serialize)]
+fn merge(flags: flags::Run) -> Result<()> {
+    let mut batch_ts = HashMap::new();
+    let mut batches: Vec<MetricBatch> = vec![];
+
+    for file in flags.files {
+        let fp = fs::read_to_string(file)?;
+        let lines = fp.lines();
+
+        for line in lines {
+            let batch: MetricBatch = serde_json::from_str(line)?;
+
+            if let Some(&idx) = batch_ts.get(&batch.timestamp) {
+                let existing_batch: &mut MetricBatch = &mut batches[idx];
+                existing_batch.metrics.extend(batch.metrics);
+            } else {
+                batch_ts.insert(batch.timestamp, batches.len());
+                batches.push(batch);
+            }
+        }
+    }
+
+    batches.sort_by_key(|e| e.timestamp);
+
+    let data_file_path = flags.output.unwrap_or_else(|| PathBuf::from("data.json"));
+    let data_file = File::create(data_file_path)?;
+
+    for batch in batches {
+        writeln!(&data_file, "{}", serde_json::to_string(&batch)?)?;
+    }
+
+    Ok(())
+}
+
+#[derive(Serialize, Deserialize)]
 struct MetricBatch {
     timestamp: u64,
     metrics: Vec<Metric>,
     attributes: Attributes,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Deserialize)]
 struct Attributes {
     git_commit: String,
     wall_clock_timestamp: u64,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Deserialize)]
 struct Metric {
     name: String,
     unit: String,
