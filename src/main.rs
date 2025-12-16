@@ -6,12 +6,12 @@ use serde::Serialize;
 use xshell::{Shell, cmd};
 
 mod android;
-mod build_metrics;
 mod benchmarks;
+mod build_metrics;
 
 use android::AndroidLibrarySize;
-use build_metrics::{Codesize, MetricCount};
 use benchmarks::Benchmark;
+use build_metrics::{Codesize, MetricCount};
 
 type Result<T, E = Box<dyn std::error::Error>> = std::result::Result<T, E>;
 
@@ -107,7 +107,10 @@ fn run(flags: flags::Run) -> Result<()> {
     }
 
     let enabled_metrics = flags.metrics.unwrap_or_else(|| String::from(""));
-    let enabled_metrics = enabled_metrics.split([' ', ',']).collect::<Vec<_>>();
+    let enabled_metrics = enabled_metrics
+        .split([' ', ','])
+        .filter(|&s| s != "")
+        .collect::<Vec<_>>();
 
     if repo.is_dir() {
         sh.change_dir(&repo);
