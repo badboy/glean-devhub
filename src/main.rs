@@ -89,8 +89,7 @@ fn run(flags: flags::Run) -> Result<()> {
     let commits = commits.lines().rev().collect::<Vec<_>>();
     println!("Found {} commits", commits.len());
 
-    let mut batches = Vec::new();
-
+    let data_file = File::create("data.json")?;
     let commit_len = commits.len();
     for (idx, commit) in commits.iter().enumerate() {
         let wall_clock_timestamp = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap_or_default().as_secs();
@@ -122,12 +121,8 @@ fn run(flags: flags::Run) -> Result<()> {
             value: lib_size,
         });
 
-        batches.push(batch);
-    }
-
-    let data_file = File::create("data.json")?;
-    for batch in batches {
         writeln!(&data_file, "{}", serde_json::to_string(&batch)?)?;
+        data_file.sync_all()?;
     }
 
     Ok(())
