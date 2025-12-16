@@ -17,8 +17,12 @@ impl MetricRecorder for AndroidLibrarySize {
     fn record(&self, sh: &Shell) -> Result<Vec<Metric>> {
         build_android(&sh)?;
 
-        let lib_file = sh.current_dir().join("glean-core/android-native/build/rustJniLibs/android/arm64-v8a/libxul.so");
-        let Ok(metadata) = lib_file.metadata() else { return Err(IoError::other("no metadata").into()) };
+        let lib_file = sh
+            .current_dir()
+            .join("glean-core/android-native/build/rustJniLibs/android/arm64-v8a/libxul.so");
+        let Ok(metadata) = lib_file.metadata() else {
+            return Err(IoError::other("no metadata").into());
+        };
         if !metadata.is_file() {
             return Err(IoError::other("not a file").into());
         }

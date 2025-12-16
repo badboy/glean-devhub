@@ -6,8 +6,8 @@ use android::AndroidLibrarySize;
 use serde::Serialize;
 use xshell::{Shell, cmd};
 
-mod build_metrics;
 mod android;
+mod build_metrics;
 
 use build_metrics::{Codesize, MetricCount};
 
@@ -63,10 +63,10 @@ mod flags {
 fn main() -> Result<()> {
     let flags = match flags::Run::from_env() {
         Ok(flags) => flags,
-        Err(err) => err.exit()
+        Err(err) => err.exit(),
     };
 
-     run(flags)
+    run(flags)
 }
 
 trait MetricRecorder {
@@ -102,24 +102,36 @@ fn run(flags: flags::Run) -> Result<()> {
     let data_file = File::create("data.json")?;
     let commit_len = commits.len();
     for (idx, commit) in commits.iter().enumerate() {
-        let wall_clock_timestamp = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap_or_default().as_secs();
+        let wall_clock_timestamp = SystemTime::now()
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs();
 
-        println!("{}/{}: Checking out {commit}", idx+1, commit_len);
+        println!("{}/{}: Checking out {commit}", idx + 1, commit_len);
         cmd!(sh, "git reset --hard {commit}").run()?;
 
-        let timestamp = cmd!(sh, "git log --pretty=format:%ct -1 {commit}").read()?.parse()?;
+        let timestamp = cmd!(sh, "git log --pretty=format:%ct -1 {commit}")
+            .read()?
+            .parse()?;
 
         let mut batch = MetricBatch {
             timestamp,
             metrics: vec![],
-            attributes: Attributes { git_commit: commit.to_string(), wall_clock_timestamp }
+            attributes: Attributes {
+                git_commit: commit.to_string(),
+                wall_clock_timestamp,
+            },
         };
 
         for recorder in metric_recorders {
             match recorder.record(&sh) {
                 Ok(metrics) => batch.metrics.extend(metrics),
                 Err(e) => {
-                    eprintln!("commit: {commit} - failed to run recorder {}, error: {:?}", recorder.name(), e);
+                    eprintln!(
+                        "commit: {commit} - failed to run recorder {}, error: {:?}",
+                        recorder.name(),
+                        e
+                    );
                 }
             }
         }
@@ -130,7 +142,6 @@ fn run(flags: flags::Run) -> Result<()> {
 
     Ok(())
 }
-
 
 #[derive(Serialize)]
 struct MetricBatch {
