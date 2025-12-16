@@ -1,6 +1,6 @@
 use std::fs::{self, File};
 use std::io::Write;
-use std::time::SystemTime;
+use std::time::{Instant, SystemTime};
 
 use serde::Serialize;
 use xshell::{Shell, cmd};
@@ -136,7 +136,10 @@ fn build_android(sh: &Shell) -> Result<()> {
         fs::copy("local.properties", dest)?;
     }
 
+    let now = Instant::now();
     cmd!(sh, "./gradlew --no-daemon :glean-native:cargoBuildArm64").run()?;
+    let duration = now.elapsed();
+    println!("Build took: {:?}", duration);
 
     Ok(())
 }
