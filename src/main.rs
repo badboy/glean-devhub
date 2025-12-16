@@ -1,10 +1,13 @@
-use std::collections::HashMap;
 use std::fs::{self, File};
 use std::io::{Write, Error as IoError};
 use std::time::{Instant, SystemTime};
 
-use serde::{Serialize, Deserialize};
+use serde::Serialize;
 use xshell::{Shell, cmd};
+
+mod build_metrics;
+
+use build_metrics::{Codesize, MetricCount};
 
 type Result<T, E = Box<dyn std::error::Error>> = std::result::Result<T, E>;
 
@@ -64,6 +67,10 @@ fn main() -> Result<()> {
      run(flags)
 }
 
+trait MetricRecorder {
+    fn record(&self, sh: &Shell, commit: &str) -> Result<Vec<Metric>>;
+}
+
 fn run(flags: flags::Run) -> Result<()> {
     let sh = Shell::new()?;
 
@@ -103,12 +110,12 @@ fn run(flags: flags::Run) -> Result<()> {
             batch.metrics.push(metric);
         }
 
-        if let Ok(metrics) = code_size(&sh) {
+        if let Ok(metrics) = Codesize.record(&sh, commit) {
             batch.metrics.extend(metrics);
         }
 
-        if let Ok(metric) = metric_count(&sh) {
-            batch.metrics.push(metric);
+        if let Ok(metrics) = MetricCount.record(&sh, commit) {
+            batch.metrics.extend(metrics);
         }
 
         writeln!(&data_file, "{}", serde_json::to_string(&batch)?)?;
@@ -135,40 +142,6 @@ fn android_build_size(sh: &Shell) -> Result<Metric> {
     })
 }
 
-type Tokei = HashMap<String, TokeiStats>;
-
-#[derive(Deserialize)]
-struct TokeiStats {
-    code: u64,
-}
-
-fn code_size(sh: &Shell) -> Result<Vec<Metric>> {
-    let tokei_out = cmd!(sh, "tokei -o json -e glean-core/android/build -t rust,kotlin,swift,python glean-core").read()?;
-    let tokei_json: Tokei = serde_json::from_str(&tokei_out)?;
-
-    let mut metrics = Vec::new();
-    for (lang, stats) in tokei_json {
-        let metric = Metric {
-            name: format!("Lines of code - {lang}"),
-            unit: String::from(""),
-            value: stats.code,
-        };
-        metrics.push(metric);
-
-    }
-
-    Ok(metrics)
-}
-
-fn metric_count(sh: &Shell) -> Result<Metric> {
-    let metric_count = cmd!(sh, "rg -c '^  [a-z]' glean-core/metrics.yaml").read()?.parse()?;
-    let metric = Metric {
-        name: format!("Number of built-in metrics"),
-        unit: String::from(""),
-        value: metric_count,
-    };
-    Ok(metric)
-}
 
 fn build_android(sh: &Shell) -> Result<()> {
     let _env = sh.push_env("CI", "1");
