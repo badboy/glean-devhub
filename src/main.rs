@@ -97,7 +97,6 @@ fn run(flags: flags::Run) -> Result<()> {
         println!("{}/{}: Checking out {commit}", idx+1, commit_len);
         cmd!(sh, "git reset --hard {commit}").run()?;
 
-
         build_android(&sh)?;
 
         let lib_file = repo.join("glean-core/android-native/build/rustJniLibs/android/arm64-v8a/libxul.so");
@@ -133,7 +132,8 @@ fn build_android(sh: &Shell) -> Result<()> {
     let _env = sh.push_env("GRADLE_OPTS", "-Dorg.gradle.daemon=false");
 
     if fs::exists("local.properties").unwrap_or(false) {
-        fs::copy("local.properties", sh.current_dir())?;
+        let dest = sh.current_dir().join("local.properties");
+        fs::copy("local.properties", dest)?;
     }
 
     cmd!(sh, "./gradlew --no-daemon :glean-native:cargoBuildArm64").run()?;
