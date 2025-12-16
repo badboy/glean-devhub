@@ -15,13 +15,13 @@ mod flags {
         src "./src/main.rs"
 
         cmd run {
-            /// Start from this commit. Start of the repository if not specified.
-            optional -s, --start commit: String
-            /// Stop at this commit. `HEAD` of the repository if not specified. Note: This
-            /// repository WILL be modified.
-            optional -e, --end commit: String
+            /// The revset to pick. Passed on to `revset` to determine commits to examine.
+            /// If unspecified, uses `HEAD^..HEAD` (only the latest commit).
+            optional -r, --revset commit: String
+
             /// Repository URL to clone from
             required -u, --url url: String
+
             /// Repository path
             required -p, --path path: PathBuf
         }
@@ -31,8 +31,7 @@ mod flags {
     // Run `env UPDATE_XFLAGS=1 cargo build` to regenerate.
     #[derive(Debug)]
     pub struct Run {
-        pub start: Option<String>,
-        pub end: Option<String>,
+        pub revset: Option<String>,
         pub url: String,
         pub path: PathBuf,
     }
@@ -79,13 +78,7 @@ fn run(flags: flags::Run) -> Result<()> {
         sh.change_dir(&repo);
     }
 
-    let start = flags.start.unwrap_or_else(|| {
-        let root_commit = cmd!(sh, "git rev-list --max-parents=0 HEAD").read().unwrap();
-        println!("Starting from root commit: {root_commit}");
-        root_commit
-    });
-    let end = flags.end.unwrap_or_else(|| String::from("origin/main"));
-    let revset = format!("{start}..{end}");
+    let revset = flags.revset.unwrap_or_else(|| String::from("HEAD^..HEAD"));
     let commits = cmd!(sh, "git rev-list {revset}").read()?;
     let commits = commits.lines().rev().collect::<Vec<_>>();
     println!("Found {} commits", commits.len());
