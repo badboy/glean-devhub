@@ -1,4 +1,4 @@
-use std::fs::File;
+use std::{fs::OpenOptions, path::PathBuf};
 use std::io::Write;
 use std::time::SystemTime;
 
@@ -34,6 +34,9 @@ mod flags {
             /// Repository path
             required -p, --path path: PathBuf
 
+            /// Output file. Default: data.json
+            optional -o, --output output: PathBuf
+
             /// List all available metrics
             optional --list-metrics
 
@@ -49,6 +52,7 @@ mod flags {
         pub revset: Option<String>,
         pub url: String,
         pub path: PathBuf,
+        pub output: Option<PathBuf>,
         pub list_metrics: bool,
         pub metrics: Option<String>,
     }
@@ -130,7 +134,8 @@ fn run(flags: flags::Run) -> Result<()> {
     let commits = commits.lines().rev().collect::<Vec<_>>();
     println!("Found {} commits", commits.len());
 
-    let data_file = File::create("data.json")?;
+    let data_file_path = flags.output.unwrap_or_else(|| PathBuf::from("data.json"));
+    let data_file = OpenOptions::new().append(true).create(true).open(data_file_path)?;
     let commit_len = commits.len();
     for (idx, commit) in commits.iter().enumerate() {
         let wall_clock_timestamp = SystemTime::now()
