@@ -1,4 +1,4 @@
-use std::fs::File;
+use std::fs::{self, File};
 use std::io::Write;
 use std::time::SystemTime;
 
@@ -137,12 +137,9 @@ fn build_android(sh: &Shell) -> Result<()> {
     let _env = sh.push_env("CI", "1");
     let _env = sh.push_env("GRADLE_OPTS", "-Dorg.gradle.daemon=false");
 
-    const LOCAL_PROPERTIES: &str = r#"
-sdk.dir=/Users/jer/Library/Android/sdk
-ndk.dir=/Users/jer/.mozbuild/android-ndk-r29
-rust.targets=arm64,darwin-aarch64
-    "#;
-    sh.write_file("local.properties", LOCAL_PROPERTIES)?;
+    if fs::exists("local.properties").unwrap_or(false) {
+        fs::copy("local.properties", sh.current_dir())?;
+    }
 
     cmd!(sh, "./gradlew --no-daemon :glean-native:cargoBuildArm64").run()?;
 
