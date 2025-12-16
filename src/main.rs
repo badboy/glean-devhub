@@ -177,8 +177,10 @@ fn run(flags: flags::Run) -> Result<()> {
             }
         }
 
-        writeln!(&data_file, "{}", serde_json::to_string(&batch)?)?;
-        data_file.sync_all()?;
+        if !batch.metrics.is_empty() {
+            writeln!(&data_file, "{}", serde_json::to_string(&batch)?)?;
+            data_file.sync_all()?;
+        }
     }
 
     Ok(())
