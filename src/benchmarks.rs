@@ -10,7 +10,7 @@ const JQ_SCRIPT: &str = r#"
 | $keys
 | map({
   name: $name + " -- " + .,
-  value: $cachegrind[.].metrics.Left.Int
+  value: $callgrind[.].metrics.Both[0].Int
 })
 "#;
 
