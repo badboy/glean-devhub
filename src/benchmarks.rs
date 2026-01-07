@@ -35,7 +35,6 @@ impl MetricRecorder for Benchmark {
         sh.write_file(&jq_script_path, JQ_SCRIPT)?;
 
         let dest = sh.current_dir().join("gungraun-output.json");
-        fs::copy("tmp/gungraun-output.json", &dest)?;
 
         let mut metrics = Vec::new();
 
