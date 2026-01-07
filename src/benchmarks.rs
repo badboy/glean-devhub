@@ -1,5 +1,3 @@
-use std::fs;
-
 use serde::Deserialize;
 use xshell::{Shell, cmd};
 
