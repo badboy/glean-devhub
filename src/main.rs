@@ -30,6 +30,8 @@ mod flags {
             /// If unspecified, uses `HEAD^..HEAD` (only the latest commit).
             optional -r, --revset commit: String
 
+            optional -l, --local-repo
+
             /// Repository URL to clone from
             required -u, --url url: String
 
@@ -59,6 +61,7 @@ mod flags {
         pub files: Vec<PathBuf>,
 
         pub revset: Option<String>,
+        pub local_repo: bool,
         pub url: String,
         pub path: PathBuf,
         pub output: Option<PathBuf>,
@@ -138,17 +141,22 @@ fn run(flags: flags::Run) -> Result<()> {
         .filter(|&s| s != "")
         .collect::<Vec<_>>();
 
-    if repo.is_dir() {
+    let commits = if flags.local_repo {
         sh.change_dir(&repo);
-        cmd!(sh, "git fetch origin").run()?;
+        cmd!(sh, "git rev-parse HEAD").read()?
     } else {
-        let url = flags.url;
-        cmd!(sh, "git clone {url} {repo} --branch main").run()?;
-        sh.change_dir(&repo);
-    }
+        if repo.is_dir() {
+            sh.change_dir(&repo);
+            cmd!(sh, "git fetch origin").run()?;
+        } else {
+            let url = flags.url;
+            cmd!(sh, "git clone {url} {repo} --branch main").run()?;
+            sh.change_dir(&repo);
+        }
+        let revset = flags.revset.unwrap_or_else(|| String::from("HEAD^..HEAD"));
+        cmd!(sh, "git rev-list {revset}").read()?
+    };
 
-    let revset = flags.revset.unwrap_or_else(|| String::from("HEAD^..HEAD"));
-    let commits = cmd!(sh, "git rev-list {revset}").read()?;
     let commits = commits.lines().rev().collect::<Vec<_>>();
     println!("Found {} commits", commits.len());
 
@@ -165,7 +173,9 @@ fn run(flags: flags::Run) -> Result<()> {
             .as_secs();
 
         println!("{}/{}: Checking out {commit}", idx + 1, commit_len);
-        cmd!(sh, "git reset --hard {commit}").run()?;
+        if !flags.local_repo {
+            cmd!(sh, "git reset --hard {commit}").run()?;
+        }
 
         let timestamp = cmd!(sh, "git log --pretty=format:%ct -1 {commit}")
             .read()?
