@@ -107,6 +107,10 @@ trait MetricRecorder {
 }
 
 fn run(flags: flags::Run) -> Result<()> {
+    if !flags.files.is_empty() {
+        return Err("no positional arguments accepted".into());
+    }
+
     let sh = Shell::new()?;
 
     let repo = flags.path;
