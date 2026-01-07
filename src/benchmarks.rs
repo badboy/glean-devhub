@@ -4,13 +4,13 @@ use xshell::{Shell, cmd};
 use super::{Metric, MetricRecorder, Result};
 
 const JQ_SCRIPT: &str = r#"
-  .profiles[0].summaries.parts[0].metrics_summary.Callgrind as $callgrind
+  .profiles[0].summaries.parts[0].metrics_summary.Cachegrind as $cachegrind
 | .function_name + " " + .details as $name
 | [ "Ir", "EstimatedCycles", "TotalRW", "L1hits", "LLhits", "RamHits" ] as $keys
 | $keys
 | map({
   name: $name + " -- " + .,
-  value: $callgrind[.].metrics.Both[0].Int
+  value: $cachegrind[.].metrics.Left.Int
 })
 "#;
 
