@@ -1,6 +1,7 @@
 use std::collections::HashMap;
+use std::{env, io};
 use std::fs::{self, File};
-use std::io::Write;
+use std::io::{Seek, Write};
 use std::time::SystemTime;
 use std::{fs::OpenOptions, path::PathBuf};
 
@@ -33,6 +34,14 @@ mod flags {
             optional -m, --metrics metrics: String
 
             default cmd run {
+            }
+
+            /// Commit new data and push back to the database repository
+            ///
+            /// Requires a valid token in the `DEVHUBDB_TOKEN` environment variable.
+            cmd commit {
+                /// Path to the data file to commit.
+                required data_file: PathBuf
             }
 
             /// List all available metrics
@@ -74,6 +83,7 @@ mod flags {
     #[derive(Debug)]
     pub enum DevhubCmd {
         Run(Run),
+        Commit(Commit),
         ListMetrics(ListMetrics),
         Backfill(Backfill),
         Merge(Merge),
@@ -81,6 +91,11 @@ mod flags {
 
     #[derive(Debug)]
     pub struct Run;
+
+    #[derive(Debug)]
+    pub struct Commit {
+        pub data_file: PathBuf,
+    }
 
     #[derive(Debug)]
     pub struct ListMetrics;
@@ -123,6 +138,56 @@ impl flags::Run {
         let data_file = OpenOptions::new().append(true).create(true).open(output)?;
 
         run_on_commit(&sh, &data_file, "HEAD", metric_recorders)?;
+
+        Ok(())
+    }
+}
+
+impl flags::Commit {
+    fn run(self, _output: PathBuf, _metric_recorders: &[&dyn MetricRecorder]) -> Result<()> {
+        let sh = Shell::new()?;
+        let token = env::var("DEVHUBDB_TOKEN").map_err(|_| "Missing environment variable 'DEVHUBDB_TOKEN")?;
+
+        let url = format!("https://oauth2:{token}@github.com/badboy/glean-devhubdb.git");
+        let mut clone_cmd = cmd!(sh, "git clone --single-branch --depth 1 {url} devhubdb");
+        // Contains the token, should not be printed.
+        clone_cmd.set_secret(true);
+        clone_cmd.run()?;
+
+        sh.change_dir("devhubdb");
+
+        let mut input = File::open(self.data_file)?;
+
+        // Try up to 32 times in case a concurrent run pushes before us.
+        let mut pushed = false;
+        for _ in 0..32 {
+            cmd!(sh, "git fetch origin main").run()?;
+            cmd!(sh, "git reset --hard origin/main").run()?;
+
+            {
+                // Copy input file to the end of `data.json`
+                input.seek(std::io::SeekFrom::Start(0))?;
+                let mut file = OpenOptions::new().append(true).open("./devhubdb/devhub/data.json")?;
+                io::copy(&mut input, &mut file)?;
+            }
+
+            cmd!(sh, "git add devhub/data.json").run()?;
+            cmd!(sh, "git commit -m 📈").run()?;
+            match cmd!(sh, "git push").run() {
+                Ok(_) => {
+                    println!("metrics uploaded");
+                    pushed = true;
+                    break;
+                },
+                Err(_) => {
+                    println!("conflict on push, retrying.");
+                }
+            }
+        }
+
+        if !pushed {
+            return Err("can't push new data to github".into());
+        }
 
         Ok(())
     }
@@ -244,6 +309,7 @@ fn main() -> Result<()> {
 
     match flags.subcommand {
         Run(r) => r.run(out_path, &metric_recorders),
+        Commit(c) => c.run(out_path, &metric_recorders),
         Backfill(b) => b.run(out_path, &metric_recorders),
         Merge(m) => m.run(out_path, &metric_recorders),
         ListMetrics(_) => unreachable!(),
