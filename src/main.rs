@@ -26,6 +26,7 @@ mod flags {
     xflags::xflags! {
         src "./src/main.rs"
 
+        /// Gather metrics for the `HEAD` commit in the current directory.
         cmd devhub {
             /// Output file. Default: data.json
             optional -o, --output output: PathBuf
@@ -33,6 +34,7 @@ mod flags {
             /// Enable only the listed metrics (comma or space-separated)
             optional -m, --metrics metrics: String
 
+            /// Gather metrics for the `HEAD` commit in the current directory
             default cmd run {
             }
 
