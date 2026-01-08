@@ -3,6 +3,7 @@ use xshell::{Shell, cmd};
 
 use super::{Metric, MetricRecorder, Result};
 
+/// Extract the listed metrics out from all benchmarks, grouped by the benchmark name.
 const JQ_SCRIPT: &str = r#"
   .profiles[0].summaries.parts[0].metrics_summary.Cachegrind as $cachegrind
 | .function_name + " " + .details as $name
@@ -15,6 +16,8 @@ const JQ_SCRIPT: &str = r#"
 "#;
 
 /// Parse Gungraun benchmark results
+///
+/// Expects a `gungraun-output.json` file in the current directory.
 pub struct Benchmark;
 
 impl MetricRecorder for Benchmark {
