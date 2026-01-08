@@ -26,7 +26,9 @@ mod flags {
     xflags::xflags! {
         src "./src/main.rs"
 
-        /// Gather metrics for the `HEAD` commit in the current directory.
+        /// Devhub helper tool.
+        ///
+        /// Allows to gather various metrics from the Glean repository and upload it to the glean-devhubdb.
         cmd devhub {
             /// Output file. Default: data.json
             optional -o, --output output: PathBuf
@@ -35,7 +37,7 @@ mod flags {
             optional -m, --metrics metrics: String
 
             /// Gather metrics for the `HEAD` commit in the current directory
-            default cmd run {
+            cmd run {
             }
 
             /// Commit new data and push back to the database repository
